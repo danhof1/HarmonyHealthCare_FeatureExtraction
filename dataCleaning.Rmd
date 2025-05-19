@@ -1,0 +1,883 @@
+---
+title: "Final Markdown"
+output: html_document
+date: "2025-05-05"
+---
+This project supports Harmony Healthcare in identifying the parameters most strongly associated with emergency room visits. Out team focuses on the creation of a cleaned and simplified dataset. Additionally we will compute initial visualization of the data which can be utilized to determine whether or not a correlation could exist between features. 
+The original dataset is composed of 675 columns and 2822 rows. Our objective is to clean this dataset as shown in the following code: 
+
+```{r}
+
+required_packages <- c(
+  "readxl", "ggplot2","dplyr"
+)
+
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
+
+
+```
+
+
+```{r}
+# Suppress warnings while reading the Excel file
+suppressWarnings({
+  library(readxl)
+  health_df <- read_xlsx("C:/Users/Daniel/OneDrive/Desktop/Work/School/Senior/Stats2/Project_Dir/Hofstra_Statistics_project__3-5-2025_4_31_13_PM (1).xlsx")
+})
+head(health_df)
+
+# Confirm success
+cat(" Successfully imported V1.xlsx\n")
+
+```
+## This addresses inconsistencies in writing
+```{r}
+# Create a list of mappings for standardizing inconsistent categorical values
+value_mappings <- list(
+  # Test Results with semantic and format inconsistencies
+  'Hep A Antibody Test Result' = list(
+    'REACTIVE' = 'Positive',
+    'Reactive' = 'Positive',
+    'NON-REACTIVE' = 'Negative',
+    'Non-Reactive' = 'Negative',
+    'NONREACTIVE' = 'Negative',
+    'Nonreactive' = 'Negative'
+  ),
+
+  'HCV Antibody Test Result' = list(
+    'REACTIVE' = 'Positive',
+    'Reactive' = 'Positive',
+    'NON-REACTIVE' = 'Negative',
+    'Non-Reactive' = 'Negative',
+    'NONREACTIVE' = 'Negative',
+    'Non Reactive' = 'Negative',
+    'non-reactive' = 'Negative',
+    'Neg' = 'Negative',
+    'neg' = 'Negative',
+    'hep c negative' = 'Negative',
+    'negative hep c screen' = 'Negative',
+    '<0.1' = 'Negative',
+    'Normal' = 'Negative',
+    'Not Detected' = 'Negative'
+  ),
+
+  'Hep C Screen Result' = list(
+    'REACTIVE' = 'Positive',
+    'Reactive' = 'Positive',
+    'NON-REACTIVE' = 'Negative',
+    'Non-Reactive' = 'Negative',
+    'NONREACTIVE' = 'Negative',
+    'Non Reactive' = 'Negative',
+    'non-reactive' = 'Negative',
+    'Neg' = 'Negative',
+    'neg' = 'Negative',
+    'hep c negative' = 'Negative',
+    '<0.1' = 'Negative',
+    '<15 ND' = 'Negative',
+    'Normal' = 'Negative',
+    'Not Detected' = 'Negative'
+  ),
+
+  'Nephropathy Screening Result' = list(
+    'NEGATIVE' = 'Negative',
+    'negative' = 'Negative',
+    'neg' = 'Negative',
+    'Neg' = 'Negative',
+    'TRACE' = 'Trace',
+    'trace' = 'Trace'
+  ),
+
+  'Gonorrhea Screen Result' = list(
+    'NEGATIVE' = 'Negative',
+    'Not Detected' = 'Negative',
+    'Normal Labs - Spanish' = 'Normal',
+    'Normal Labs -English' = 'Normal'
+  ),
+
+  'Chlamydia Screen Result' = list(
+    'negative' = 'Negative',
+    'positive' = 'Positive',
+    'Normal Labs - Spanish' = 'Normal',
+    'Normal Labs -English' = 'Normal',
+    'Performed at Nassau University Med Center, Dr. Rachel Robbins M.D.' = 'External Test'
+  ),
+
+  # Binary fields with inconsistent representations
+  'Sex at Birth' = list(
+    'F' = 'Female',
+    'M' = 'Male',
+    'U' = 'Unknown'
+  ),
+
+  # Medication name abbreviation standardization
+  'ACE ARB Med Name' = list(
+    'Losartan Potassium-HCTZ' = 'Losartan Potassium-Hydrochlorothiazide'
+  ),
+
+  'Anti HTN Med Name' = list(
+    'Losartan Potassium-HCTZ' = 'Losartan Potassium-Hydrochlorothiazide',
+    'Olmesartan Medoxomil-HCTZ' = 'Olmesartan Medoxomil-Hydrochlorothiazide',
+    'Telmisartan-HCTZ' = 'Telmisartan-Hydrochlorothiazide',
+    'Amlodipine-Valsartan-HCTZ' = 'Amlodipine-Valsartan-Hydrochlorothiazide'
+  ),
+
+  # Colorectal cancer screening needs special handling due to compound format
+  'Colorectal Cancer Screening Status Message' = list(
+    # Mapping patterns for FIT-DNA results
+    'Compliant | FIT-DNA: neg' = 'Compliant | FIT-DNA: Negative',
+    'Compliant | FIT-DNA: NEG' = 'Compliant | FIT-DNA: Negative',
+    'Compliant | FIT-DNA: negative' = 'Compliant | FIT-DNA: Negative',
+    'Compliant | FIT-DNA: NEGATIVE' = 'Compliant | FIT-DNA: Negative',
+    'Compliant | FIT-DNA: positive' = 'Compliant | FIT-DNA: Positive',
+
+    # Mapping patterns for FOBT results
+    'Overdue | Fecal Occult Blood Test (FOBT): neg' = 'Overdue | Fecal Occult Blood Test (FOBT): Negative',
+    'Overdue | Fecal Occult Blood Test (FOBT): NEG' = 'Overdue | Fecal Occult Blood Test (FOBT): Negative',
+    'Overdue | Fecal Occult Blood Test (FOBT): Neg' = 'Overdue | Fecal Occult Blood Test (FOBT): Negative',
+    'Overdue | Fecal Occult Blood Test (FOBT): negative' = 'Overdue | Fecal Occult Blood Test (FOBT): Negative',
+    'Overdue | Fecal Occult Blood Test (FOBT): NEGATIVE' = 'Overdue | Fecal Occult Blood Test (FOBT): Negative',
+    'Overdue | Fecal Occult Blood Test (FOBT): positive' = 'Overdue | Fecal Occult Blood Test (FOBT): Positive',
+    'Overdue | Fecal Occult Blood Test (FOBT): POSITIVE' = 'Overdue | Fecal Occult Blood Test (FOBT): Positive'
+  )
+)
+
+# Function to apply mappings to a data frame column
+standardize_column <- function(column, mapping) {
+  # Create a new column with the original values
+  result <- column
+
+  # Apply each mapping
+  for (i in 1:length(column)) {
+    if (!is.na(column[i]) && column[i] %in% names(mapping)) {
+      result[i] <- mapping[[column[i]]]
+    }
+  }
+
+  return(result)
+}
+
+# Function to apply all mappings to the data frame
+standardize_dataframe <- function(df, mappings) {
+  # Loop through each column that needs standardization
+  for (col_name in names(mappings)) {
+    if (col_name %in% names(df)) {
+      df[[col_name]] <- standardize_column(df[[col_name]], mappings[[col_name]])
+    } else {
+      warning(paste("Column", col_name, "not found in the data frame"))
+    }
+  }
+
+  return(df)
+}
+
+# For columns with Yes/No variations, standardize them
+standardize_yes_no <- function(df) {
+  # List of columns that use "Y"/"N" format
+  yes_no_columns <- c(
+    "Domestic Violence", "Falls Screen Result", "Material Security Food Trigger",
+    "Material Security Food Obtaining Food", "Housing Trigger", "Housing Worry",
+    "Incarceration Trigger", "Social Integration Trigger",
+    "Material Security Child Care Insecurity", "Material Security Clothing Insecurity",
+    "Material Security Medicine Medical Care Insecurity", "Material Security Utilities Insecurity",
+    "Language Patient Detail", "Safety Trigger", "Smoking Status Detail"
+  )
+
+  # Standardize each column
+  for (col in yes_no_columns) {
+    if (col %in% names(df)) {
+      df[[col]] <- ifelse(df[[col]] == "Y", "Yes",
+                         ifelse(df[[col]] == "N", "No", df[[col]]))
+    }
+  }
+
+  return(df)
+}
+
+# Now apply the mappings to the health dataframe
+#health_df <- read.csv("HHdata_FilledValues_BinaryTarget.csv", stringsAsFactors = FALSE)
+
+# First apply specific mappings
+health_df <- standardize_dataframe(health_df, value_mappings)
+
+# Then standardize Yes/No columns
+health_df <- standardize_yes_no(health_df)
+
+# The health_df dataframe now has standardized categorical values
+# You can verify the changes by checking the unique values in specific columns
+# For example:
+# unique(health_df$Hep.A.Antibody.Test.Result)
+# unique(health_df$Domestic.Violence)
+```
+
+##Lower-Case Values
+
+```{R}
+health_df <- health_df %>% mutate(across(where(is.character), tolower))
+
+health_df
+
+```
+
+
+## To remove completely blank columns:
+```{r}
+# Track removed columns
+removed_columns <- list()
+
+# Remove blank columns (columns with no values)
+empty_cols <- colnames(health_df)[colSums(!is.na(health_df)) == 0]
+health_df <- health_df[, colSums(!is.na(health_df)) != 0]  # Remove columns
+removed_columns$empty <- empty_cols
+
+# Print the list of removed columns
+cat("Removed blank columns:\n")
+print(head(removed_columns$empty))
+```
+Note: Each major change will produce a csv file such that each change can be observed separately if needed. 
+```{r}
+
+# Save the cleaned dataset as a CSV file
+#write.csv(health_df, "NoBlank_data.csv", row.names = FALSE)
+
+#cat("Cleaned dataset saved as 'NoBlank_data.csv'.")
+```
+
+```{r}
+# Load the "new"" dataset
+#health_df <- read.csv("NoBlank_data.csv")
+
+# Track removed columns due to high % of blank entries
+removed_columns_80 <- list()
+
+# (more than 80%)
+blank_threshold <- nrow(health_df) * 0.8
+cols_to_remove <- colnames(health_df)[colSums(is.na(health_df)) > blank_threshold]
+
+# Remove columns
+health_df <- health_df[, colSums(is.na(health_df)) <= blank_threshold]
+# Save
+write.csv(health_df, "No_80percent_blanks.csv", row.names = FALSE)
+
+# Track and print the removed columns
+removed_columns_80$high_blank <- cols_to_remove
+cat("Removed columns with more than 80% blank entries:\n")
+print(head(removed_columns_80$high_blank))
+
+cat("Further cleaned dataset saved as 'No_80percent_blanks.csv'.")
+
+```
+This code allows the creating of Admission:Yes and No
+```{r}
+# Load the dataset
+health_df <- read.csv("No_80percent_blanks.csv", stringsAsFactors = FALSE)
+
+# Engineer the 'Admission' column based on the three ED-related fields
+health_df$Admission <- ifelse(
+  !is.na(health_df$`ED.Episode.Admit.Location`) |
+  !is.na(health_df$`ED.HIE.Claim.Location`) |
+  !is.na(health_df$`ED.HIE.Claim.Discharge`),
+  "Yes",
+  "No"
+)
+
+# Save the updated data frame with the new 'Admission' column
+write.csv(health_df, " HHdata_MissingValues_BinaryTarget.csv", row.names = FALSE)
+
+```
+This code will be dealing with columns containing the cathegorical entries.
+```{r}
+
+# Load the cleaned dataset
+health_df <- read.csv(" HHdata_MissingValues_BinaryTarget.csv")
+
+# Calculate the mode
+get_mode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]  # Find the most frequent value
+}
+
+# Initialize a list to store column classifications
+column_classifications <- list()
+
+# List of columns to exclude from imputation
+exclude_columns <- c("ED.Episode.Admit.Location", "ED.HIE.Claim.Location", "ED.HIE.Claim.Discharge", "Admission")
+
+# Loop through each column in the dataframe
+for (colname in colnames(health_df)) {
+  # Skip the columns we don't want to process
+  if (colname %in% exclude_columns) {
+    column_classifications[[colname]] <- "Excluded"
+    next
+  }
+
+  # Check if categorical
+  if (is.factor(health_df[[colname]]) || is.character(health_df[[colname]])) {
+    # Convert "N/A" to NA for consistency
+    health_df[[colname]] <- ifelse(health_df[[colname]] == "N/A", NA, health_df[[colname]])
+
+    # Replace empty strings ("") with NA
+    health_df[[colname]] <- ifelse(health_df[[colname]] == "", NA, health_df[[colname]])
+
+    # Calculate mode of categorical column (ignore NA values)
+    mode_value <- get_mode(health_df[[colname]][!is.na(health_df[[colname]])])
+
+    # Replace NA values with mode
+    health_df[[colname]][is.na(health_df[[colname]])] <- mode_value
+
+    # Record the column type and name
+    column_classifications[[colname]] <- "Categorical"
+  } else {
+    # If the column is numerical - record it
+    column_classifications[[colname]] <- "Numerical"
+  }
+}
+
+# Print columns with their types (Categorical or Numerical, and Excluded for specific columns)
+cat("Columns and their classifications:\n")
+print(head(column_classifications))
+
+# Save the updated dataframe
+write.csv(health_df, "Categorical.csv", row.names = FALSE)
+
+cat("Dataset with imputed missing values saved as 'Categorical.csv'.")
+
+```
+This code will be dealing with columns containing the numerical entries.
+```{r}
+# Load the dataset
+health_df <- read.csv("Categorical.csv")
+
+numerical_columns <- c()
+
+# Loop column in the dataframe
+for (colname in colnames(health_df)) {
+  # Check if numeric
+  if (is.numeric(health_df[[colname]])) {
+    # Add column name to list
+    numerical_columns <- c(numerical_columns, colname)
+
+    # Convert "N/A" to NA
+    health_df[[colname]][health_df[[colname]] == "N/A"] <- NA
+
+    # Replace empty strings ("") with NA
+    health_df[[colname]][health_df[[colname]] == ""] <- NA
+
+    # Ensure numeric type (if no, conversion needed)
+    health_df[[colname]] <- as.numeric(health_df[[colname]])
+
+    # Calculate mean (ignoring NA)
+    mean_value <- mean(health_df[[colname]], na.rm = TRUE)
+
+    # Replace NA with mean
+    health_df[[colname]][is.na(health_df[[colname]])] <- mean_value
+  }
+}
+
+# Print list of numerical columns
+cat("Numerical columns:\n")
+print(head(numerical_columns))
+
+# Save the updated dataset
+write.csv(health_df, "Numerical.csv", row.names = FALSE)
+
+cat("Dataset with imputed means saved as 'Numerical.csv'.")
+
+```
+Due to the complexity added by temporal measures, we decided to, at least for the first iterations, to exclude any variables of time and date.
+```{r} 
+health_df <- read.csv("Numerical.csv", stringsAsFactors = FALSE)
+health_df <- health_df[ , !grepl("date", names(health_df), ignore.case = TRUE)]
+write.csv(health_df, "NoDates.csv", row.names = FALSE)
+cat("Columns related to dates have been deleted and a new dataset has been saved as 'NoDates.csv'.")
+```
+This section of the code tells us if any blank columns are still present.
+```{r}
+health_df <- read.csv("NoDates.csv", stringsAsFactors = FALSE)
+columns_empty_check <- c()
+
+for (colname in colnames(health_df)) {
+  if ( any(is.na(health_df[[colname]]) | health_df[colname] == "")) {
+    columns_empty_check <- c(columns_empty_check, colname)
+  }
+
+}
+# Need to print if found then... if not then...
+if (length(columns_empty_check) > 0) {# If something exists
+  cat("Columns with empty cells are:\n")
+print(columns_empty_check)
+} else
+{ cat("No Error Found")} #  No empty spaces
+
+```
+Note: in the section above there are three empty columns, namely: "ED.Episode.Admit.Location", "ED.HIE.Claim.Location", and "ED.HIE.Claim.Discharge". 
+This is because these three were used, in a previous chunck, in the creation of the engennereed variaable. They are now ready to be removed.
+#Version 2
+This code creates the dataset which is our official submission at this time.
+```{r}
+# Use current working directory (typically the folder where the Rmd lives when knitting)
+current_dir <- getwd()
+cat("Current working directory:", current_dir, "\n")
+
+# Construct full path
+csv_path <- file.path(current_dir, "NoDates.csv")
+
+if (file.exists(csv_path)) {
+  health_df <- read.csv(csv_path)
+  cat("Successfully read", csv_path, "\n")
+} else {
+  cat("Error: File not found:", csv_path, "\n")
+  files <- list.files(current_dir, pattern = "*.csv", full.names = TRUE)
+  cat("Available CSV files:", paste(files, collapse = ", "), "\n")
+}
+
+# Drop unnecessary columns
+health_df <- health_df[, !(colnames(health_df) %in% c("ED.Episode.Admit.Location", "ED.HIE.Claim.Location", "ED.HIE.Claim.Discharge"))]
+
+# Save result to same working directory
+output_path <- file.path(current_dir, "HHdata_FilledValues_BinaryTarget.csv")
+
+tryCatch({
+  write.csv(health_df, output_path, row.names = FALSE)
+  cat("Dataset successfully saved as:", output_path, "\n")
+}, error = function(e) {
+  cat("Error saving file:", e$message, "\n")
+})
+
+
+```
+
+This is the code that allows the visualization of some features using graphics.
+## Graph 1: (Admission Status and Education Trigger)
+```{r}
+# Load ggplot2
+library(ggplot2)
+
+# Read in your data
+df <- read.csv("HHdata_FilledValues_BinaryTarget.csv", stringsAsFactors = FALSE)
+
+# Ensure Admission and Education.Trigger are factors, and set their order if you like
+df$Admission <- factor(df$Admission, levels = c("No", "Yes"))
+df$Education.Trigger <- factor(df$Education.Trigger)
+
+# Create grouped bar plot
+ggplot(df, aes(x = Education.Trigger, fill = Admission)) +
+  geom_bar(position = "dodge") +
+  labs(
+    x = "Education Trigger",
+    y = "Count",
+    title = "Admission Status by Education Trigger"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+The bar chart shows that the highest number of admissions comes from individuals without a high school degree. This suggests that programs should be specifically targeting this group. Further analysis of this group to others with higher educational levels could reveal important informations.
+## Graph 2: (Active Medications & ER Status)
+```{r}
+# Load ggplot2
+library(ggplot2)
+df$Admission <- factor(df$Admission, levels = c("No", "Yes"))
+
+if("Active.Medications" %in% colnames(df)) {
+  ggplot(df, aes(x = Admission, y = Active.Medications, fill = Admission)) +
+    geom_boxplot(alpha = 0.7) +
+    geom_jitter(width = 0.2, alpha = 0.3, size = 0.8) +
+    scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+    labs(
+      title = "Active Medications by Admission Status",
+      x = "Admission Status",
+      y = "Active Medications"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      legend.position = "none"
+    )
+}
+
+```
+The side-by-side boxplot of Active Medication by Admission Status indicates that the median level of active medications is higher for admitted individuals ("Yes") compared to those not admitted ("No"). This suggests that individuals who were admitted were typically on more or stronger active medications.
+## Graph 3: (Proportion Race vs Admission)
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)  # Needed for %>% and group_by/summarise/mutate
+library(scales) # For percent formatting
+# Ensure Admission is a factor
+df$Admission <- factor(df$Admission, levels = c("No", "Yes"))
+
+# Calculate proportions within each Race group
+df_prop <- df %>%
+  group_by(Race, Admission) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(Race) %>%
+  mutate(prop = n / sum(n))
+
+# Plot proportions
+ggplot(df_prop, aes(x = Race, y = prop, fill = Admission)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_y_continuous(labels = percent_format()) +
+  labs(
+    x = "Race",
+    y = "Proportion",
+    title = "Proportion of Admission Status by Race"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+The bar plot shows the proportion of admission outcomes (“Yes” or “No”) across different racial groups. Each bar represents a racial category and is normalized to show relative proportions rather than raw counts. Notably, groups like Chinese, Filipino, and Korean show overwhelmingly high proportions of “No” admissions, suggesting very low admission rates within those populations. In contrast, groups like Black/African American, Asian Indian, and White show more balanced proportions, indicating relatively higher admission success. The “Unmapped” and “Unreported/Choose Not to Disclose Race” categories display unusually high proportions of admitted individuals. Overall, the plot shows notable disparities in admission rates among racial groups.
+
+```{r}
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(scales) # For percent formatting
+
+# Read in your dataset - make sure to use the correct path
+df <- read.csv("V2.csv", stringsAsFactors = FALSE)
+
+# Ensure Admission is a factor with proper levels
+df$Admission <- factor(df$Admission, levels = c("No", "Yes"))
+
+# Function to safely create plots with error handling
+create_plot <- function(plot_code) {
+  tryCatch({
+    plot_code
+  }, error = function(e) {
+    # Create a blank plot with error message
+    ggplot() + 
+      annotate("text", x = 0.5, y = 0.5, 
+               label = paste("Error creating plot:", e$message)) +
+      theme_void() +
+      xlim(0, 1) + ylim(0, 1)
+  })
+}
+
+# 1. HCC Risk Total vs Admission Status
+if("Patient.HCC.Risk.Total.Risk" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = Admission, y = Patient.HCC.Risk.Total.Risk, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "HCC Risk Total by Admission Status",
+        x = "Admission Status",
+        y = "HCC Risk Total Score"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      )
+  )
+}
+
+# 2. Active Medications Count vs Admission
+if("Active.Medications" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = Admission, y = Active.Medications, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "Active Medications by Admission Status",
+        x = "Admission Status",
+        y = "Number of Active Medications"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      )
+  )
+}
+
+# 3. Primary Care Encounter Count vs Admission 
+if("Primary.Care.Encounter.Count" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = Admission, y = Primary.Care.Encounter.Count, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "Primary Care Encounter Count by Admission Status",
+        x = "Admission Status",
+        y = "Primary Care Encounter Count"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      )
+  )
+}
+
+# 4. SDOH Assessment Count vs Admission
+if("SDOH.Assessment.Count" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = Admission, y = SDOH.Assessment.Count, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "SDOH Assessment Count by Admission Status",
+        x = "Admission Status",
+        y = "SDOH Assessment Count"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      )
+  )
+}
+
+# 5. No Show Rate vs Admission
+if("Patient.Appointment.No.Show.Rate" %in% names(df)) {
+  # First check if there's enough variation to create a density plot
+  if(length(unique(df$Patient.Appointment.No.Show.Rate)) > 5) {
+    create_plot(
+      ggplot(df, aes(x = Patient.Appointment.No.Show.Rate, fill = Admission)) +
+        geom_density(alpha = 0.5) +
+        scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+        labs(
+          title = "Distribution of Appointment No-Show Rate by Admission Status",
+          x = "Appointment No-Show Rate",
+          y = "Density"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(hjust = 0.5)
+        )
+    )
+  } else {
+    # If not enough variation, create a bar plot instead
+    create_plot(
+      ggplot(df, aes(x = Patient.Appointment.No.Show.Rate, fill = Admission)) +
+        geom_bar(position = "dodge") +
+        scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+        labs(
+          title = "Appointment No-Show Rate by Admission Status",
+          x = "Appointment No-Show Rate",
+          y = "Count"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(hjust = 0.5)
+        )
+    )
+  }
+}
+
+# 6. Depression Screening Count Past Year
+if("Depression.Screening.Count.Past.Yr" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = factor(Depression.Screening.Count.Past.Yr), fill = Admission)) +
+      geom_bar(position = "dodge") +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "Depression Screening Count (Past Year) by Admission Status",
+        x = "Depression Screenings in Past Year",
+        y = "Count"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5)
+      )
+  )
+}
+
+# 7. eGFR Result vs Admission
+if("eGFR.Result" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = Admission, y = eGFR.Result, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "eGFR Results by Admission Status",
+        x = "Admission Status",
+        y = "eGFR Result"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      )
+  )
+}
+
+# 8. BMI distribution by Admission
+if("Most.Recent.BMI.Value" %in% names(df)) {
+  # First convert to numeric if it's not already
+  df$Most.Recent.BMI.Value <- as.numeric(as.character(df$Most.Recent.BMI.Value))
+  
+  create_plot(
+    ggplot(df, aes(x = Admission, y = Most.Recent.BMI.Value, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "BMI Value by Admission Status",
+        x = "Admission Status",
+        y = "BMI Value"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      ) +
+      geom_hline(yintercept = c(18.5, 25, 30), linetype = "dashed", color = "black", alpha = 0.7)
+  )
+}
+
+# 9. UDS Qualifying Encounter Count
+if("UDS.Qualifying.Encounter.Count" %in% names(df)) {
+  create_plot(
+    ggplot(df, aes(x = Admission, y = UDS.Qualifying.Encounter.Count, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "UDS Qualifying Encounter Count by Admission Status",
+        x = "Admission Status",
+        y = "UDS Qualifying Encounter Count"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      )
+  )
+}
+
+# 10. COVID-19 Immunization Codes by Admission Status
+if("COVID.19.Immunization.Code" %in% names(df)) {
+  # Check if enough data exists
+  if(sum(!is.na(df$COVID.19.Immunization.Code)) > 10) {
+    # Create safe version that handles NAs and empty strings
+    covid_code_clean <- df %>%
+      filter(!is.na(COVID.19.Immunization.Code) & COVID.19.Immunization.Code != "")
+    
+    if(nrow(covid_code_clean) > 0) {
+      create_plot(
+        ggplot(covid_code_clean, aes(x = COVID.19.Immunization.Code, fill = Admission)) +
+          geom_bar(position = "dodge") +
+          scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+          labs(
+            title = "COVID-19 Immunization Code by Admission Status",
+            x = "COVID-19 Immunization Code",
+            y = "Count"
+          ) +
+          theme_minimal() +
+          theme(
+            plot.title = element_text(hjust = 0.5),
+            axis.text.x = element_text(angle = 45, hjust = 1)
+          )
+      )
+    }
+  }
+}
+
+# 11. Fasting Glucose Test Result vs Admission
+if("Fasting.Glucose.Test.Result" %in% names(df)) {
+  # Convert to numeric if it's a character or factor
+  df$Fasting.Glucose.Test.Result <- as.numeric(as.character(df$Fasting.Glucose.Test.Result))
+  
+  create_plot(
+    ggplot(df, aes(x = Admission, y = Fasting.Glucose.Test.Result, fill = Admission)) +
+      geom_boxplot(alpha = 0.7) +
+      scale_fill_manual(values = c("No" = "#4472C4", "Yes" = "#ED7D31")) +
+      labs(
+        title = "Fasting Glucose Test Results by Admission Status",
+        x = "Admission Status",
+        y = "Fasting Glucose Test Result (mg/dL)"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"
+      ) +
+      geom_hline(yintercept = c(100, 126), linetype = "dashed", color = "red", alpha = 0.7)
+  )
+}
+
+```
+
+## Discussion of Findings
+
+The dataset cleaning process yielded a comprehensive and consistent dataset for analyzing factors associated with emergency room visits. Several important patterns emerged from the visualizations that provide valuable insights for Harmony Healthcare's initiatives.
+
+### Educational Factors
+
+The bar chart comparing admission status by education level reveals a striking pattern: individuals with less than a high school degree have significantly higher emergency room admission rates compared to other educational groups. This suggests that educational attainment may be a critical social determinant of health affecting healthcare utilization. Targeted interventions for this demographic could potentially reduce unnecessary emergency room visits.
+
+### Medication Usage
+
+The boxplot comparing active medications between admitted and non-admitted patients shows a clear disparity, with admitted patients having a substantially higher median number of active medications. This suggests that polypharmacy and complex medication regimens may be associated with increased emergency care needs. Patients in the "Yes" admission category showed median values approximately twice as high as non-admitted patients, indicating that medication management could be a key factor in emergency service utilization.
+
+### Race and Ethnic Disparities
+
+The visualization of admission proportions by race reveals notable disparities. While certain groups like Chinese, Filipino, and Korean populations show very low admission rates, other groups including Black/African American, Asian Indian, and White populations display more balanced proportions. The unusually high admission rates in the "Unmapped" category may warrant further investigation, as this could represent a vulnerable population with specific healthcare access challenges.
+
+### Social Determinants of Health (SDOH)
+
+The SDOH Assessment Count boxplot shows that patients with emergency admissions have undergone more social determinants of health assessments, with the median value for admitted patients being substantially higher. This may indicate that these patients are already identified as having more social risk factors, which corresponds with their higher utilization of emergency services.
+
+### Healthcare Utilization Patterns
+
+The Primary Care Encounter Count visualization demonstrates that patients admitted to the emergency room also have higher frequencies of primary care visits. This counterintuitive finding suggests that emergency admissions may not simply result from lack of primary care access, but potentially from more complex health needs that aren't being adequately addressed in primary care settings.
+
+### Clinical Indicators
+
+Several clinical indicators showed differences between admitted and non-admitted patients:
+
+1. **Fasting Glucose**: The visualization shows higher median glucose levels for admitted patients, with more outliers in the diabetic and pre-diabetic ranges (above the red dashed reference lines at 100 and 126 mg/dL).
+
+2. **BMI Values**: The BMI distribution shows slightly higher values for admitted patients, with more extreme outliers in the obesity range.
+
+3. **eGFR Results**: Kidney function as measured by eGFR shows somewhat comparable distributions, though admitted patients show slightly more variability.
+
+### Preventive Care and Screening
+
+The Depression Screening Count visualization reveals interesting patterns in healthcare engagement. Both admitted and non-admitted groups show similar distributions of screening frequency, with a decreasing trend as the number of screenings increases. This suggests that depression screening alone may not be strongly predictive of emergency service utilization.
+
+## Implications for Healthcare Planning
+
+These findings suggest several potential focus areas for Harmony Healthcare:
+
+1. **Educational Interventions**: Develop targeted health education programs for individuals with lower educational attainment.
+
+2. **Medication Management**: Implement medication review and reconciliation programs, particularly for patients on multiple medications.
+
+3. **Cultural Competence**: Address potential cultural and language barriers that might contribute to disparities in emergency service use among different racial/ethnic groups.
+
+4. **Integrated Care Models**: Strengthen coordination between primary care and emergency services, as high utilizers of emergency services also frequently engage with primary care.
+
+5. **Proactive SDOH Screening**: Expand SDOH assessments to identify at-risk individuals before they require emergency services.
+
+Further statistical analysis is recommended to quantify the strength of these relationships and to identify the most significant predictors of emergency room admissions. Multivariate modeling could help isolate the effect of each factor while controlling for others, providing even more targeted insights for intervention planning.
+
+## Division of Labor for final Rmd and Presentation
+
+Bart: Import the dataset and write code to eliminate blank columns and those with a missing value percentage exceeding a defined threshold. Develop functions that use write.csv to save the cleaned datasets. Implement the code for data visualization. Collaborate with Daniel to prepare the final presentation
+
+Create the code for the following Datasets:
+- HHdata_MissingValues_NumericalTarget.csv
+(Leave missing entries empty, no engineering variables, leaving only the "ED Episode Admit Last 6 Mths" admissions related variable)
+- HHdata_FilledValues_NumericalTarget.csv
+(Fill in missing entries (with median and mode), no engineering variables, leaving only the "ED Episode Admit Last 6 Mths" admissions related variable)
+
+
+Daniel: Develop the original baseline code to engineer the 'Admission: Yes' and 'Admission: No' variables. Remove columns containing date-related information. Standardize missing values by converting 'N/A' and empty strings to NA for consistency. Write code for data visualization and resolve any inconsistencies in text formatting. Collaborate with Bart to finalize the presentation
+
+Eddie: Develop a code to produce the following datasets:
+-- HHdata_MissingValues_BinaryTarget.csv
+(Leave missing entries empty, with binary admissions variable added and removing, "ED Episode Admit Last 6 Mths" admissions related variable)
+-- HHdata_FilledValues_BinaryTarget.csv
+(Fill in missing entries (with median and mode), with binary admissions variable added and removing, "ED Episode Admit Last 6 Mths" admissions related variable )
+
+
+NOTE: The code Eddie made was uploaded by him separately.
